@@ -1,90 +1,95 @@
-const imageInput = document.getElementById('imageInput');
-const convertBtn = document.getElementById('convertBtn');
-const status = document.getElementById('status');
-const downloadLink = document.getElementById('downloadLink');
-const { jsPDF } = window.jspdf;
+importScripts('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+importScripts('https://cdnjs.cloudflare.com/ajax/libs/canvg/3.0.10/canvg.min.js');
 
-// Update status saat file dipilih
-imageInput.addEventListener('change', () => {
-    convertBtn.disabled = !imageInput.files.length;
-    status.textContent = imageInput.files.length ? `Selected ${imageInput.files.length} file(s)` : '';
-    downloadLink.classList.add('hidden');
-});
+const { jsPDF } = jspdf;
 
-// Proses konversi saat tombol diklik
-convertBtn.addEventListener('click', async () => {
-    const files = imageInput.files;
-    if (!files.length) return;
-
-    status.textContent = 'Converting...';
-    convertBtn.disabled = true;
-    convertBtn.textContent = 'Converting...';
-
+self.onmessage = async (e) => {
     try {
+        const files = e.data; // Array of { buffer, text, type, name, size }
+        if (!files || !Array.isArray(files) || files.length === 0) {
+            throw new Error('No files received');
+        }
+
         // Validasi file
         for (const file of files) {
-            if (!['image/jpeg', 'image/png'].includes(file.type)) {
-                status.textContent = `Error: ${file.name} bukan JPG atau PNG yang valid`;
-                convertBtn.disabled = false;
-                convertBtn.textContent = 'Convert to PDF';
-                return;
+            if (!['image/jpeg', 'image/png', 'text/plain', 'image/svg+xml'].includes(file.type)) {
+                throw new Error(`${file.name} is not a valid JPG, PNG, TXT, or SVG file`);
             }
             if (file.size > 10 * 1024 * 1024) {
-                status.textContent = `Error: ${file.name} melebihi batas 10MB`;
-                convertBtn.disabled = false;
-                convertBtn.textContent = 'Convert to PDF';
-                return;
+                throw new Error(`${file.name} exceeds 10MB limit`);
             }
         }
 
         const pdf = new jsPDF();
-        let firstImage = true;
+        let firstPage = true;
 
-        // Proses setiap gambar
+        // Proses setiap file
         for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            status.textContent = `Processing image ${i + 1} of ${files.length}...`;
+            const { buffer, text, type, name } = files[i];
 
-            const img = new Image();
-            const url = URL.createObjectURL(file);
-            img.src = url;
+            if (type === 'text/plain') {
+                // Tambahkan teks ke PDF
+                if (!firstPage) {
+                    pdf.addPage();
+                }
+                pdf.setFontSize(12);
+                pdf.text(text, 10, 10, { maxWidth: 190 });
+                firstPage = false;
+            } else if (type === 'image/svg+xml') {
+                // Proses SVG
+                const svgText = new TextDecoder().decode(buffer);
+                const canvas = new OffscreenCanvas(210, 297); // Ukuran A4 dalam mm
+                const ctx = canvas.getContext('2d');
 
-            await new Promise((resolve) => (img.onload = resolve));
+                await Canvg.from(ctx, svgText, {
+                    ignoreDimensions: false,
+                    scaleWidth: 210 * 2.83, // Skala ke ukuran A4 (595 pt)
+                    scaleHeight: 297 * 2.83
+                }).render();
 
-            const imgWidth = img.width;
-            const imgHeight = img.height;
+                const imgData = canvas.toDataURL('image/png');
+                if (!firstPage) {
+                    pdf.addPage();
+                }
+                pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+                firstPage = false;
+            } else {
+                // Proses gambar (JPG/PNG)
+                const img = new Image();
+                const blob = new Blob([buffer], { type });
+                const url = URL.createObjectURL(blob);
+                img.src = url;
 
-            // Skala ke ukuran A4 (210x297 mm)
-            const pdfWidth = 210;
-            const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-            const format = [pdfWidth, pdfHeight];
-            const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
+                try {
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = () => reject(new Error(`Failed to load image ${name}`));
+                    });
 
-            if (!firstImage) {
-                pdf.addPage(format, orientation);
+                    const imgWidth = img.width;
+                    const imgHeight = img.height;
+                    const pdfWidth = 210;
+                    const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
+                    const format = [pdfWidth, pdfHeight];
+                    const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
+
+                    if (!firstPage) {
+                        pdf.addPage(format, orientation);
+                    }
+
+                    pdf.setPage(firstPage ? 1 : pdf.internal.getNumberOfPages());
+                    pdf.addImage(img, type === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                    firstPage = false;
+                } finally {
+                    URL.revokeObjectURL(url);
+                }
             }
-
-            pdf.setPage(firstImage ? 1 : pdf.internal.getNumberOfPages());
-            pdf.addImage(img, file.type === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pdfWidth, pdfHeight);
-            firstImage = false;
-
-            URL.revokeObjectURL(url);
         }
 
-        // Simpan PDF dan buat link download
-        const pdfBlob = pdf.output('blob');
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-        downloadLink.href = pdfUrl;
-        downloadLink.classList.remove('hidden');
-        downloadLink.click();
-        setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
-
-        status.textContent = 'PDF berhasil dibuat dan diunduh!';
+        // Simpan PDF sebagai ArrayBuffer
+        const pdfArrayBuffer = pdf.output('arraybuffer');
+        self.postMessage({ success: true, data: pdfArrayBuffer }, [pdfArrayBuffer]);
     } catch (error) {
-        status.textContent = `Error: ${error.message || 'Gagal mengonversi gambar ke PDF'}`;
-        console.error(error);
-    } finally {
-        convertBtn.disabled = false;
-        convertBtn.textContent = 'Convert to PDF';
+        self.postMessage({ success: false, error: error.message || 'Failed to convert document to PDF' });
     }
-});
+};
