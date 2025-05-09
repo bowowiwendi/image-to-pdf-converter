@@ -29,14 +29,14 @@
         <input type="file" id="fileInput" accept="image/jpeg,image/png,text/plain" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
         <div class="flex space-x-2 mb-4">
             <button id="convertBtn" class="convert-btn flex-1 text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Convert to PDF</button>
-            <a id="donateBtn" href="https://www.paypal.me/yourusername" target="_blank" class="donate-btn flex-none text-white py-2 px-4 rounded transition">Donate</a>
+            <a id="donateBtn" href="https://donate.bowowiwendi.workers.dev/" target="_blank" class="donate-btn flex-none text-white py-2 px-4 rounded transition">Donate</a>
         </div>
         <a id="downloadLink" class="hidden" download="converted.pdf"></a>
         <p id="status" class="status text-center mt-4"></p>
     </div>
 
     <script>
-        const DONATE_LINK = 'https://www.paypal.me/yourusername'; // Ganti dengan link donasi Anda
+        const DONATE_LINK = 'https://donate.bowowiwendi.workers.dev/'; // Ganti dengan link donasi Anda
         const { jsPDF } = window.jspdf;
 
         const fileInput = document.getElementById('fileInput');
