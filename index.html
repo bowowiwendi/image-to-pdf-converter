@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document Converter</title>
+    <title>SHL CONVERTER</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #FFF7ED; }
@@ -20,12 +20,12 @@
 </head>
 <body class="flex items-center justify-center min-h-screen">
     <div class="container p-4 sm:p-8 rounded-lg max-w-md w-full">
-        <h1 class="title text-2xl font-bold text-center mb-4">Document Converter</h1>
+        <h1 class="title text-2xl font-bold text-center mb-4">SHL CONVERTER</h1>
         <p class="subtitle text-sm text-center mb-4">
-            A free, no-registration converter for JPG, PNG, TXT, and SVG to PDF. Support us with a donation!
+            A free, no-registration converter for JPG, PNG, and TXT to PDF. Support us with a donation!
         </p>
-        <label for="fileInput" class="sr-only">Upload JPG, PNG, TXT, or SVG files</label>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,text/plain,image/svg+xml" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
+        <label for="fileInput" class="sr-only">Upload JPG, PNG, or TXT files</label>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,text/plain" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
         <div class="flex space-x-2 mb-4">
             <button id="convertBtn" class="convert-btn flex-1 text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Convert to PDF</button>
             <a id="donateBtn" href="https://www.paypal.me/yourusername" target="_blank" class="donate-btn flex-none text-white py-2 px-4 rounded transition">Donate</a>
@@ -35,7 +35,7 @@
     </div>
 
     <script>
-        const DONATE_LINK = 'https://donate.bowowiwendi.workers.dev/'; // Ganti dengan link donasi Anda
+        const DONATE_LINK = 'https://www.paypal.me/yourusername'; // Update with your donation link
 
         const fileInput = document.getElementById('fileInput');
         const convertBtn = document.getElementById('convertBtn');

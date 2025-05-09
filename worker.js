@@ -1,5 +1,4 @@
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-importScripts('https://cdnjs.cloudflare.com/ajax/libs/canvg/3.0.10/canvg.min.js');
 
 const { jsPDF } = jspdf;
 
@@ -10,10 +9,10 @@ self.onmessage = async (e) => {
             throw new Error('No files received');
         }
 
-        // Validasi file
+        // Validate files
         for (const file of files) {
-            if (!['image/jpeg', 'image/png', 'text/plain', 'image/svg+xml'].includes(file.type)) {
-                throw new Error(`${file.name} is not a valid JPG, PNG, TXT, or SVG file`);
+            if (!['image/jpeg', 'image/png', 'text/plain'].includes(file.type)) {
+                throw new Error(`${file.name} is not a valid JPG, PNG, or TXT file`);
             }
             if (file.size > 10 * 1024 * 1024) {
                 throw new Error(`${file.name} exceeds 10MB limit`);
@@ -23,38 +22,20 @@ self.onmessage = async (e) => {
         const pdf = new jsPDF();
         let firstPage = true;
 
-        // Proses setiap file
+        // Process each file
         for (let i = 0; i < files.length; i++) {
             const { buffer, text, type, name } = files[i];
 
             if (type === 'text/plain') {
-                // Tambahkan teks ke PDF
+                // Add text to PDF
                 if (!firstPage) {
                     pdf.addPage();
                 }
                 pdf.setFontSize(12);
                 pdf.text(text, 10, 10, { maxWidth: 190 });
                 firstPage = false;
-            } else if (type === 'image/svg+xml') {
-                // Proses SVG
-                const svgText = new TextDecoder().decode(buffer);
-                const canvas = new OffscreenCanvas(210, 297); // Ukuran A4 dalam mm
-                const ctx = canvas.getContext('2d');
-
-                await Canvg.from(ctx, svgText, {
-                    ignoreDimensions: false,
-                    scaleWidth: 210 * 2.83, // Skala ke ukuran A4 (595 pt)
-                    scaleHeight: 297 * 2.83
-                }).render();
-
-                const imgData = canvas.toDataURL('image/png');
-                if (!firstPage) {
-                    pdf.addPage();
-                }
-                pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
-                firstPage = false;
             } else {
-                // Proses gambar (JPG/PNG)
+                // Process images (JPG/PNG)
                 const img = new Image();
                 const blob = new Blob([buffer], { type });
                 const url = URL.createObjectURL(blob);
@@ -86,7 +67,7 @@ self.onmessage = async (e) => {
             }
         }
 
-        // Simpan PDF sebagai ArrayBuffer
+        // Save PDF as ArrayBuffer
         const pdfArrayBuffer = pdf.output('arraybuffer');
         self.postMessage({ success: true, data: pdfArrayBuffer }, [pdfArrayBuffer]);
     } catch (error) {
