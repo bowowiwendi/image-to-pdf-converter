@@ -8,8 +8,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script src="https://unpkg.com/docx@8.5.0/build/index.min.js"></script>
     <style>
         body { background-color: #FFF7ED; }
         .container { background-color: #FFFFFF; box-shadow: 0 4px 20px rgba(244, 114, 182, 0.2); }
@@ -28,29 +26,27 @@
     <div class="container p-4 sm:p-8 rounded-lg max-w-md w-full">
         <h1 class="title text-2xl font-bold text-center mb-4">SHL CONVERTER</h1>
         <p class="subtitle text-sm text-center mb-4">
-            A free, no-registration converter for JPG, PNG, TXT, Word, and PDF. Support us with a donation!
+            A free, no-registration converter for JPG, PNG, TXT, and Word to PDF. Support us with a donation!
         </p>
         <label for="convertType" class="sr-only">Select conversion type</label>
         <select id="convertType" class="block w-full mb-4 text-sm text-gray-900">
             <option value="image">JPG/PNG to PDF</option>
             <option value="text">TXT to PDF</option>
             <option value="word">Word (DOCX) to PDF</option>
-            <option value="pdfToWord">PDF to Word (DOCX)</option>
         </select>
-        <label for="fileInput" class="sr-only">Upload JPG, PNG, TXT, DOCX, or PDF files</label>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
+        <label for="fileInput" class="sr-only">Upload JPG, PNG, TXT, or DOCX files</label>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
         <div class="flex space-x-2 mb-4">
-            <button id="convertBtn" class="convert-btn flex-1 text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Convert</button>
+            <button id="convertBtn" class="convert-btn flex-1 text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Convert to PDF</button>
             <a id="donateBtn" href="https://www.paypal.me/yourusername" target="_blank" class="donate-btn flex-none text-white py-2 px-4 rounded transition">Donate</a>
         </div>
-        <a id="downloadLink" class="hidden"></a>
+        <a id="downloadLink" class="hidden" download="converted.pdf"></a>
         <p id="status" class="status text-center mt-4"></p>
     </div>
 
     <script>
         const DONATE_LINK = 'https://www.paypal.me/yourusername'; // Ganti dengan link donasi Anda
         const { jsPDF } = window.jspdf;
-        const { Document, Packer, Paragraph, TextRun } = window.docx;
 
         const fileInput = document.getElementById('fileInput');
         const convertBtn = document.getElementById('convertBtn');
@@ -61,24 +57,15 @@
 
         donateBtn.href = DONATE_LINK;
 
-        // Konfigurasi pdf.js
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
         // Update accepted file types based on conversion type
         convertType.addEventListener('change', () => {
             const type = convertType.value;
             if (type === 'image') {
                 fileInput.accept = 'image/jpeg,image/png';
-                convertBtn.textContent = 'Convert to PDF';
             } else if (type === 'text') {
                 fileInput.accept = 'text/plain';
-                convertBtn.textContent = 'Convert to PDF';
             } else if (type === 'word') {
                 fileInput.accept = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-                convertBtn.textContent = 'Convert to PDF';
-            } else if (type === 'pdfToWord') {
-                fileInput.accept = 'application/pdf';
-                convertBtn.textContent = 'Convert to Word';
             }
             fileInput.value = ''; // Reset file input
             convertBtn.disabled = true;
@@ -110,130 +97,96 @@
                         throw new Error(`${file.name} bukan file TXT`);
                     } else if (selectedType === 'word' && fileType !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
                         throw new Error(`${file.name} bukan file DOCX`);
-                    } else if (selectedType === 'pdfToWord' && fileType !== 'application/pdf') {
-                        throw new Error(`${file.name} bukan file PDF`);
                     }
                     if (file.size > 10 * 1024 * 1024) {
                         throw new Error(`${file.name} melebihi batas 10MB`);
                     }
                 }
 
-                if (selectedType === 'pdfToWord') {
-                    // Konversi PDF ke Word
-                    const file = files[0]; // Hanya proses satu file untuk PDF ke Word
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    let textContent = '';
+                const pdf = new jsPDF();
+                let firstPage = true;
 
-                    // Ekstrak teks dari setiap halaman
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const text = await page.getTextContent();
-                        textContent += text.items.map(item => item.str).join(' ') + '\n';
-                    }
+                // Proses setiap file
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
 
-                    // Buat dokumen Word menggunakan docx.js
-                    const doc = new Document({
-                        sections: [{
-                            properties: {},
-                            children: textContent.split('\n').filter(line => line.trim()).map(line => 
-                                new Paragraph({
-                                    children: [new TextRun(line)]
-                                })
-                            )
-                        }]
-                    });
-
-                    // Simpan sebagai DOCX
-                    const blob = await Packer.toBlob(doc);
-                    saveAs(blob, 'converted.docx');
-                    status.textContent = 'Word document successfully created and downloaded!';
-                } else {
-                    // Konversi ke PDF (JPG, PNG, TXT, Word)
-                    const pdf = new jsPDF();
-                    let firstPage = true;
-
-                    for (let i = 0; i < files.length; i++) {
-                        const file = files[i];
-
-                        if (selectedType === 'text') {
-                            const text = await file.text();
-                            if (!firstPage) {
-                                pdf.addPage();
-                            }
-                            pdf.setFontSize(12);
-                            pdf.text(text, 10, 10, { maxWidth: 190 });
-                            firstPage = false;
-                        } else if (selectedType === 'image') {
-                            const arrayBuffer = await file.arrayBuffer();
-                            const img = new Image();
-                            const blob = new Blob([arrayBuffer], { type: file.type });
-                            const url = URL.createObjectURL(blob);
-                            img.src = url;
-
-                            try {
-                                await new Promise((resolve, reject) => {
-                                    img.onload = resolve;
-                                    img.onerror = () => reject(new Error(`Gagal memuat gambar ${file.name}`));
-                                });
-
-                                const imgWidth = img.width;
-                                const imgHeight = img.height;
-                                const pdfWidth = 210;
-                                const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-                                const format = [pdfWidth, pdfHeight];
-                                const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
-
-                                if (!firstPage) {
-                                    pdf.addPage(format, orientation);
-                                }
-
-                                pdf.setPage(firstPage ? 1 : pdf.internal.getNumberOfPages());
-                                pdf.addImage(img, file.type === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                                firstPage = false;
-                            } finally {
-                                URL.revokeObjectURL(url);
-                            }
-                        } else if (selectedType === 'word') {
-                            const arrayBuffer = await file.arrayBuffer();
-                            const result = await mammoth.convertToHtml({ arrayBuffer });
-                            const htmlContent = result.value;
-
-                            if (!firstPage) {
-                                pdf.addPage();
-                            }
-                            pdf.setFontSize(12);
-
-                            const tempDiv = document.createElement('div');
-                            tempDiv.innerHTML = htmlContent;
-                            const textContent = tempDiv.innerText.split('\n').filter(line => line.trim());
-
-                            let yPos = 10;
-                            for (const line of textContent) {
-                                if (yPos > 280) {
-                                    pdf.addPage();
-                                    yPos = 10;
-                                }
-                                pdf.text(line, 10, yPos, { maxWidth: 190 });
-                                yPos += 10;
-                            }
-                            firstPage = false;
+                    if (selectedType === 'text') {
+                        const text = await file.text();
+                        if (!firstPage) {
+                            pdf.addPage();
                         }
-                    }
+                        pdf.setFontSize(12);
+                        pdf.text(text, 10, 10, { maxWidth: 190 });
+                        firstPage = false;
+                    } else if (selectedType === 'image') {
+                        const arrayBuffer = await file.arrayBuffer();
+                        const img = new Image();
+                        const blob = new Blob([arrayBuffer], { type: file.type });
+                        const url = URL.createObjectURL(blob);
+                        img.src = url;
 
-                    // Simpan dan unduh PDF
-                    const pdfArrayBuffer = pdf.output('arraybuffer');
-                    const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
-                    saveAs(pdfBlob, 'converted.pdf');
-                    status.textContent = 'PDF successfully created and downloaded!';
+                        try {
+                            await new Promise((resolve, reject) => {
+                                img.onload = resolve;
+                                img.onerror = () => reject(new Error(`Gagal memuat gambar ${file.name}`));
+                            });
+
+                            const imgWidth = img.width;
+                            const imgHeight = img.height;
+                            const pdfWidth = 210;
+                            const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
+                            const format = [pdfWidth, pdfHeight];
+                            const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
+
+                            if (!firstPage) {
+                                pdf.addPage(format, orientation);
+                            }
+
+                            pdf.setPage(firstPage ? 1 : pdf.internal.getNumberOfPages());
+                            pdf.addImage(img, file.type === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                            firstPage = false;
+                        } finally {
+                            URL.revokeObjectURL(url);
+                        }
+                    } else if (selectedType === 'word') {
+                        const arrayBuffer = await file.arrayBuffer();
+                        const result = await mammoth.convertToHtml({ arrayBuffer });
+                        const htmlContent = result.value; // HTML dari DOCX
+
+                        if (!firstPage) {
+                            pdf.addPage();
+                        }
+                        pdf.setFontSize(12);
+
+                        // Konversi HTML sederhana ke teks untuk jsPDF
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = htmlContent;
+                        const textContent = tempDiv.innerText.split('\n').filter(line => line.trim());
+
+                        let yPos = 10;
+                        for (const line of textContent) {
+                            if (yPos > 280) {
+                                pdf.addPage();
+                                yPos = 10;
+                            }
+                            pdf.text(line, 10, yPos, { maxWidth: 190 });
+                            yPos += 10;
+                        }
+                        firstPage = false;
+                    }
                 }
 
+                // Simpan dan unduh PDF
+                const pdfArrayBuffer = pdf.output('arraybuffer');
+                const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+                saveAs(pdfBlob, 'converted.pdf'); // Menggunakan FileSaver.js
+                status.textContent = 'PDF berhasil dibuat dan diunduh!';
                 convertBtn.disabled = false;
-                convertBtn.textContent = selectedType === 'pdfToWord' ? 'Convert to Word' : 'Convert to PDF';
+                convertBtn.textContent = 'Convert to PDF';
             } catch (error) {
-                status.textContent = `Error: ${error.message || 'Gagal mengonversi dokumen'}`;
+                status.textContent = `Error: ${error.message || 'Gagal mengonversi dokumen ke PDF'}`;
                 convertBtn.disabled = false;
-                convertBtn.textContent = selectedType === 'pdfToWord' ? 'Convert to Word' : 'Convert to PDF';
+                convertBtn.textContent = 'Convert to PDF';
             }
         });
     </script>
