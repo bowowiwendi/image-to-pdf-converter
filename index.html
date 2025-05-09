@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SHL CONVERTER</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body { background-color: #FFF7ED; }
         .container { background-color: #FFFFFF; box-shadow: 0 4px 20px rgba(244, 114, 182, 0.2); }
@@ -35,7 +36,8 @@
     </div>
 
     <script>
-        const DONATE_LINK = 'https://www.paypal.me/yourusername'; // Update with your donation link
+        const DONATE_LINK = 'https://www.paypal.me/yourusername'; // Ganti dengan link donasi Anda
+        const { jsPDF } = window.jspdf;
 
         const fileInput = document.getElementById('fileInput');
         const convertBtn = document.getElementById('convertBtn');
@@ -44,32 +46,6 @@
         const downloadLink = document.getElementById('downloadLink');
 
         donateBtn.href = DONATE_LINK;
-
-        const worker = new Worker('worker.js');
-
-        worker.onmessage = (e) => {
-            const { success, data, error } = e.data;
-            convertBtn.disabled = false;
-            convertBtn.textContent = 'Convert to PDF';
-
-            if (success) {
-                const pdfBlob = new Blob([data], { type: 'application/pdf' });
-                const pdfUrl = URL.createObjectURL(pdfBlob);
-                downloadLink.href = pdfUrl;
-                downloadLink.classList.remove('hidden');
-                downloadLink.click();
-                setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
-                status.textContent = 'PDF successfully created and downloaded!';
-            } else {
-                status.textContent = `Error: ${error}`;
-            }
-        };
-
-        worker.onerror = (error) => {
-            convertBtn.disabled = false;
-            convertBtn.textContent = 'Convert to PDF';
-            status.textContent = `Error: ${error.message || 'An error occurred in the Worker'}`;
-        };
 
         fileInput.addEventListener('change', () => {
             convertBtn.disabled = !fileInput.files.length;
@@ -86,29 +62,84 @@
             convertBtn.textContent = 'Converting...';
 
             try {
-                const fileData = [];
+                // Validasi file
                 for (const file of files) {
-                    if (file.type === 'text/plain') {
-                        const text = await file.text();
-                        fileData.push({
-                            text,
-                            type: file.type,
-                            name: file.name,
-                            size: file.size
-                        });
-                    } else {
-                        const arrayBuffer = await file.arrayBuffer();
-                        fileData.push({
-                            buffer: arrayBuffer,
-                            type: file.type,
-                            name: file.name,
-                            size: file.size
-                        });
+                    if (!['image/jpeg', 'image/png', 'text/plain'].includes(file.type)) {
+                        throw new Error(`${file.name} bukan file JPG, PNG, atau TXT yang valid`);
+                    }
+                    if (file.size > 10 * 1024 * 1024) {
+                        throw new Error(`${file.name} melebihi batas 10MB`);
                     }
                 }
-                worker.postMessage(fileData);
+
+                const pdf = new jsPDF();
+                let firstPage = true;
+
+                // Proses setiap file
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    let data, type;
+
+                    if (file.type === 'text/plain') {
+                        data = await file.text();
+                        type = 'text';
+                    } else {
+                        data = await file.arrayBuffer();
+                        type = 'image';
+                    }
+
+                    if (type === 'text') {
+                        if (!firstPage) {
+                            pdf.addPage();
+                        }
+                        pdf.setFontSize(12);
+                        pdf.text(data, 10, 10, { maxWidth: 190 });
+                        firstPage = false;
+                    } else {
+                        const img = new Image();
+                        const blob = new Blob([data], { type: file.type });
+                        const url = URL.createObjectURL(blob);
+                        img.src = url;
+
+                        try {
+                            await new Promise((resolve, reject) => {
+                                img.onload = resolve;
+                                img.onerror = () => reject(new Error(`Gagal memuat gambar ${file.name}`));
+                            });
+
+                            const imgWidth = img.width;
+                            const imgHeight = img.height;
+                            const pdfWidth = 210;
+                            const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
+                            const format = [pdfWidth, pdfHeight];
+                            const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
+
+                            if (!firstPage) {
+                                pdf.addPage(format, orientation);
+                            }
+
+                            pdf.setPage(firstPage ? 1 : pdf.internal.getNumberOfPages());
+                            pdf.addImage(img, file.type === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                            firstPage = false;
+                        } finally {
+                            URL.revokeObjectURL(url);
+                        }
+                    }
+                }
+
+                // Simpan dan unduh PDF
+                const pdfArrayBuffer = pdf.output('arraybuffer');
+                const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                downloadLink.href = pdfUrl;
+                downloadLink.classList.remove('hidden');
+                downloadLink.click();
+                setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
+                status.textContent = 'PDF berhasil dibuat dan diunduh!';
+                convertBtn.disabled = false;
+                convertBtn.textContent = 'Convert to PDF';
             } catch (error) {
-                status.textContent = `Error: ${error.message || 'Failed to process files'}`;
+                status.textContent = `Error: ${error.message || 'Gagal mengonversi dokumen ke PDF'}`;
                 convertBtn.disabled = false;
                 convertBtn.textContent = 'Convert to PDF';
             }
