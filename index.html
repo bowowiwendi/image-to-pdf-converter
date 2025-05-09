@@ -3,55 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image to PDF Converter</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <title>Document Converter</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            background-color: #FFF7ED;
-        }
-        .container {
-            background-color: #FFFFFF;
-            box-shadow: 0 4px 20px rgba(244, 114, 182, 0.2);
-        }
-        .title {
-            color: #4B5563;
-        }
-        .subtitle {
-            color: #6B7280;
-        }
-        .convert-btn {
-            background-color: #F9A8D4;
-        }
-        .convert-btn:hover {
-            background-color: #F472B6;
-        }
-        .status {
-            color: #A5B4FC;
-        }
-        .sr-only {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            border: 0;
-        }
+        body { background-color: #FFF7ED; }
+        .container { background-color: #FFFFFF; box-shadow: 0 4px 20px rgba(244, 114, 182, 0.2); }
+        .title { color: #4B5563; }
+        .subtitle { color: #6B7280; }
+        .convert-btn { background-color: #F9A8D4; }
+        .convert-btn:hover { background-color: #F472B6; }
+        .donate-btn { background-color: #FBBF24; }
+        .donate-btn:hover { background-color: #F59E0B; }
+        .status { color: #A5B4FC; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen">
     <div class="container p-4 sm:p-8 rounded-lg max-w-md w-full">
-        <h1 class="title text-2xl font-bold text-center mb-4">Image to PDF Converter</h1>
-        <p class="subtitle text-sm text-center mb-4">Upload JPG or PNG to convert to PDF</p>
-        <label for="imageInput" class="sr-only">Upload JPG or PNG images</label>
-        <input type="file" id="imageInput" accept="image/jpeg,image/png" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
-        <button id="convertBtn" class="convert-btn w-full text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Convert to PDF</button>
+        <h1 class="title text-2xl font-bold text-center mb-4">Document Converter</h1>
+        <p class="subtitle text-sm text-center mb-4">
+            A free, no-registration converter for JPG, PNG, TXT, and SVG to PDF. Support us with a donation!
+        </p>
+        <label for="fileInput" class="sr-only">Upload JPG, PNG, TXT, or SVG files</label>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,text/plain,image/svg+xml" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
+        <div class="flex space-x-2 mb-4">
+            <button id="convertBtn" class="convert-btn flex-1 text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Convert to PDF</button>
+            <a id="donateBtn" href="https://www.paypal.me/yourusername" target="_blank" class="donate-btn flex-none text-white py-2 px-4 rounded transition">Donate</a>
+        </div>
         <a id="downloadLink" class="hidden" download="converted.pdf"></a>
         <p id="status" class="status text-center mt-4"></p>
     </div>
 
-    <script src="index.js"></script>
+    <script>
+        const DONATE_LINK = 'https://www.paypal.me/yourusername'; // Ganti dengan link donasi Anda
+
+        const fileInput = document.getElementById('fileInput');
+        const convertBtn = document.getElementById('convertBtn');
+        const donateBtn = document.getElementById('donateBtn');
+        const status = document.getElementById('status');
+        const downloadLink = document.getElementById('downloadLink');
+
+        donateBtn.href = DONATE_LINK;
+
+        const worker = new Worker('worker.js');
+
+        worker.onmessage = (e) => {
+            const { success, data, error } = e.data;
+            convertBtn.disabled = false;
+            convertBtn.textContent = 'Convert to PDF';
+
+            if (success) {
+                const pdfBlob = new Blob([data], { type: 'application/pdf' });
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                downloadLink.href = pdfUrl;
+                downloadLink.classList.remove('hidden');
+                downloadLink.click();
+                setTimeout(() => URL.revokeObjectURL(pdfUrl), 100);
+                status.textContent = 'PDF successfully created and downloaded!';
+            } else {
+                status.textContent = `Error: ${error}`;
+            }
+        };
+
+        worker.onerror = (error) => {
+            convertBtn.disabled = false;
+            convertBtn.textContent = 'Convert to PDF';
+            status.textContent = `Error: ${error.message || 'An error occurred in the Worker'}`;
+        };
+
+        fileInput.addEventListener('change', () => {
+            convertBtn.disabled = !fileInput.files.length;
+            status.textContent = fileInput.files.length ? `Selected ${fileInput.files.length} file(s)` : '';
+            downloadLink.classList.add('hidden');
+        });
+
+        convertBtn.addEventListener('click', async () => {
+            const files = fileInput.files;
+            if (!files.length) return;
+
+            status.textContent = 'Converting...';
+            convertBtn.disabled = true;
+            convertBtn.textContent = 'Converting...';
+
+            try {
+                const fileData = [];
+                for (const file of files) {
+                    if (file.type === 'text/plain') {
+                        const text = await file.text();
+                        fileData.push({
+                            text,
+                            type: file.type,
+                            name: file.name,
+                            size: file.size
+                        });
+                    } else {
+                        const arrayBuffer = await file.arrayBuffer();
+                        fileData.push({
+                            buffer: arrayBuffer,
+                            type: file.type,
+                            name: file.name,
+                            size: file.size
+                        });
+                    }
+                }
+                worker.postMessage(fileData);
+            } catch (error) {
+                status.textContent = `Error: ${error.message || 'Failed to process files'}`;
+                convertBtn.disabled = false;
+                convertBtn.textContent = 'Convert to PDF';
+            }
+        });
+    </script>
 </body>
 </html>
