@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@1.0.15/dist/browser-image-compression.min.js"></script>
     <style>
         body { background-color: #FFF7ED; }
         .container { background-color: #FFFFFF; box-shadow: 0 4px 20px rgba(244, 114, 182, 0.2); }
@@ -45,17 +46,12 @@
     </div>
 
     <script>
-        const DONATE_LINK = 'https://donate.bowowiwendi.workers.dev/'; // Ganti dengan link donasi Anda
         const { jsPDF } = window.jspdf;
 
         const fileInput = document.getElementById('fileInput');
         const convertBtn = document.getElementById('convertBtn');
-        const donateBtn = document.getElementById('donateBtn');
         const status = document.getElementById('status');
-        const downloadLink = document.getElementById('downloadLink');
         const convertType = document.getElementById('convertType');
-
-        donateBtn.href = DONATE_LINK;
 
         // Update accepted file types based on conversion type
         convertType.addEventListener('change', () => {
@@ -75,7 +71,6 @@
         fileInput.addEventListener('change', () => {
             convertBtn.disabled = !fileInput.files.length;
             status.textContent = fileInput.files.length ? `Selected ${fileInput.files.length} file(s)` : '';
-            downloadLink.classList.add('hidden');
         });
 
         convertBtn.addEventListener('click', async () => {
@@ -84,111 +79,58 @@
 
             status.textContent = 'Converting...';
             convertBtn.disabled = true;
-            convertBtn.textContent = 'Converting...';
+
+            const selectedType = convertType.value;
+            const pdf = new jsPDF();
+            let firstPage = true;
 
             try {
-                // Validasi file
-                const selectedType = convertType.value;
                 for (const file of files) {
-                    const fileType = file.type;
-                    if (selectedType === 'image' && !['image/jpeg', 'image/png'].includes(fileType)) {
-                        throw new Error(`${file.name} bukan file JPG atau PNG`);
-                    } else if (selectedType === 'text' && fileType !== 'text/plain') {
-                        throw new Error(`${file.name} bukan file TXT`);
-                    } else if (selectedType === 'word' && fileType !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                        throw new Error(`${file.name} bukan file DOCX`);
-                    }
-                    if (file.size > 10 * 1024 * 1024) {
-                        throw new Error(`${file.name} melebihi batas 10MB`);
-                    }
-                }
-
-                const pdf = new jsPDF();
-                let firstPage = true;
-
-                // Proses setiap file
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-
-                    if (selectedType === 'text') {
-                        const text = await file.text();
-                        if (!firstPage) {
-                            pdf.addPage();
-                        }
-                        pdf.setFontSize(12);
-                        pdf.text(text, 10, 10, { maxWidth: 190 });
-                        firstPage = false;
-                    } else if (selectedType === 'image') {
-                        const arrayBuffer = await file.arrayBuffer();
+                    if (selectedType === 'image') {
+                        const compressedFile = await compressImage(file, 250); // Compress image to 250 KB
+                        const arrayBuffer = await compressedFile.arrayBuffer();
                         const img = new Image();
-                        const blob = new Blob([arrayBuffer], { type: file.type });
+                        const blob = new Blob([arrayBuffer], { type: compressedFile.type });
                         const url = URL.createObjectURL(blob);
                         img.src = url;
 
-                        try {
-                            await new Promise((resolve, reject) => {
-                                img.onload = resolve;
-                                img.onerror = () => reject(new Error(`Gagal memuat gambar ${file.name}`));
-                            });
+                        await new Promise((resolve, reject) => {
+                            img.onload = resolve;
+                            img.onerror = () => reject(new Error(`Failed to load image ${file.name}`));
+                        });
 
-                            const imgWidth = img.width;
-                            const imgHeight = img.height;
-                            const pdfWidth = 210;
-                            const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-                            const format = [pdfWidth, pdfHeight];
-                            const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
-
-                            if (!firstPage) {
-                                pdf.addPage(format, orientation);
-                            }
-
-                            pdf.setPage(firstPage ? 1 : pdf.internal.getNumberOfPages());
-                            pdf.addImage(img, file.type === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                            firstPage = false;
-                        } finally {
-                            URL.revokeObjectURL(url);
-                        }
-                    } else if (selectedType === 'word') {
-                        const arrayBuffer = await file.arrayBuffer();
-                        const result = await mammoth.convertToHtml({ arrayBuffer });
-                        const htmlContent = result.value; // HTML dari DOCX
+                        const imgWidth = img.width;
+                        const imgHeight = img.height;
+                        const pdfWidth = 210;
+                        const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
 
                         if (!firstPage) {
-                            pdf.addPage();
+                            pdf.addPage([pdfWidth, pdfHeight]);
                         }
-                        pdf.setFontSize(12);
-
-                        // Konversi HTML sederhana ke teks untuk jsPDF
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = htmlContent;
-                        const textContent = tempDiv.innerText.split('\n').filter(line => line.trim());
-
-                        let yPos = 10;
-                        for (const line of textContent) {
-                            if (yPos > 280) {
-                                pdf.addPage();
-                                yPos = 10;
-                            }
-                            pdf.text(line, 10, yPos, { maxWidth: 190 });
-                            yPos += 10;
-                        }
+                        pdf.addImage(img, compressedFile.type === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pdfWidth, pdfHeight);
                         firstPage = false;
+
+                        URL.revokeObjectURL(url);
                     }
                 }
 
-                // Simpan dan unduh PDF
-                const pdfArrayBuffer = pdf.output('arraybuffer');
-                const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
-                saveAs(pdfBlob, 'converted.pdf'); // Menggunakan FileSaver.js
-                status.textContent = 'PDF berhasil dibuat dan diunduh!';
-                convertBtn.disabled = false;
-                convertBtn.textContent = 'Convert to PDF';
+                const pdfBlob = new Blob([pdf.output('arraybuffer')], { type: 'application/pdf' });
+                saveAs(pdfBlob, 'converted.pdf');
+                status.textContent = 'PDF successfully created!';
             } catch (error) {
-                status.textContent = `Error: ${error.message || 'Gagal mengonversi dokumen ke PDF'}`;
+                status.textContent = `Error: ${error.message}`;
+            } finally {
                 convertBtn.disabled = false;
-                convertBtn.textContent = 'Convert to PDF';
             }
         });
+
+        async function compressImage(file, maxSizeKB) {
+            const options = {
+                maxSizeMB: maxSizeKB / 1024, // Convert KB to MB
+                useWebWorker: true,
+            };
+            return await imageCompression(file, options);
+        }
     </script>
 </body>
 </html>
