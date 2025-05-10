@@ -3,21 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SHL CONVERTER</title>
+    <title>JPG Compressor</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@1.0.15/dist/browser-image-compression.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         body { background-color: #FFF7ED; }
         .container { background-color: #FFFFFF; box-shadow: 0 4px 20px rgba(244, 114, 182, 0.2); }
         .title { color: #4B5563; }
         .subtitle { color: #6B7280; }
-        .convert-btn { background-color: #F9A8D4; }
-        .convert-btn:hover { background-color: #F472B6; }
-        .donate-btn { background-color: #FBBF24; }
-        .donate-btn:hover { background-color: #F59E0B; }
+        .compress-btn { background-color: #F9A8D4; }
+        .compress-btn:hover { background-color: #F472B6; }
         .status { color: #A5B4FC; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
         select { background-color: #F3F4F6; border-radius: 0.375rem; padding: 0.5rem; }
@@ -25,105 +21,62 @@
 </head>
 <body class="flex items-center justify-center min-h-screen">
     <div class="container p-4 sm:p-8 rounded-lg max-w-md w-full">
-        <h1 class="title text-2xl font-bold text-center mb-4">SHL CONVERTER</h1>
+        <h1 class="title text-2xl font-bold text-center mb-4">JPG Compressor</h1>
         <p class="subtitle text-sm text-center mb-4">
-            A free, no-registration converter for JPG, PNG, TXT, and Word to PDF. Support us with a donation!
+            Compress your JPG files to 250 KB easily and download the compressed results.
         </p>
-        <label for="convertType" class="sr-only">Select conversion type</label>
-        <select id="convertType" class="block w-full mb-4 text-sm text-gray-900">
-            <option value="image">JPG/PNG to PDF</option>
-            <option value="text">TXT to PDF</option>
-            <option value="word">Word (DOCX) to PDF</option>
-        </select>
-        <label for="fileInput" class="sr-only">Upload JPG, PNG, TXT, or DOCX files</label>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
-        <div class="flex space-x-2 mb-4">
-            <button id="convertBtn" class="convert-btn flex-1 text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Convert to PDF</button>
-            <a id="donateBtn" href="https://donate.bowowiwendi.workers.dev/" target="_blank" class="donate-btn flex-none text-white py-2 px-4 rounded transition">Donate</a>
-        </div>
-        <a id="downloadLink" class="hidden" download="converted.pdf"></a>
+        <label for="fileInput" class="sr-only">Upload JPG files</label>
+        <input type="file" id="fileInput" accept="image/jpeg" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
+        <button id="compressBtn" class="compress-btn w-full text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Compress JPG to 250 KB</button>
         <p id="status" class="status text-center mt-4"></p>
     </div>
 
     <script>
-        const { jsPDF } = window.jspdf;
-
         const fileInput = document.getElementById('fileInput');
-        const convertBtn = document.getElementById('convertBtn');
+        const compressBtn = document.getElementById('compressBtn');
         const status = document.getElementById('status');
-        const convertType = document.getElementById('convertType');
 
-        // Update accepted file types based on conversion type
-        convertType.addEventListener('change', () => {
-            const type = convertType.value;
-            if (type === 'image') {
-                fileInput.accept = 'image/jpeg,image/png';
-            } else if (type === 'text') {
-                fileInput.accept = 'text/plain';
-            } else if (type === 'word') {
-                fileInput.accept = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-            }
-            fileInput.value = ''; // Reset file input
-            convertBtn.disabled = true;
-            status.textContent = '';
-        });
-
+        // Enable the compress button when files are selected
         fileInput.addEventListener('change', () => {
-            convertBtn.disabled = !fileInput.files.length;
-            status.textContent = fileInput.files.length ? `Selected ${fileInput.files.length} file(s)` : '';
+            compressBtn.disabled = !fileInput.files.length;
+            status.textContent = fileInput.files.length ? `Selected ${fileInput.files.length} JPG file(s)` : '';
         });
 
-        convertBtn.addEventListener('click', async () => {
+        // Compress JPG files to 250 KB
+        compressBtn.addEventListener('click', async () => {
             const files = fileInput.files;
             if (!files.length) return;
 
-            status.textContent = 'Converting...';
-            convertBtn.disabled = true;
+            status.textContent = 'Compressing...';
+            compressBtn.disabled = true;
 
-            const selectedType = convertType.value;
-            const pdf = new jsPDF();
-            let firstPage = true;
-
-            try {
-                for (const file of files) {
-                    if (selectedType === 'image') {
-                        const compressedFile = await compressImage(file, 250); // Compress image to 250 KB
-                        const arrayBuffer = await compressedFile.arrayBuffer();
-                        const img = new Image();
-                        const blob = new Blob([arrayBuffer], { type: compressedFile.type });
-                        const url = URL.createObjectURL(blob);
-                        img.src = url;
-
-                        await new Promise((resolve, reject) => {
-                            img.onload = resolve;
-                            img.onerror = () => reject(new Error(`Failed to load image ${file.name}`));
-                        });
-
-                        const imgWidth = img.width;
-                        const imgHeight = img.height;
-                        const pdfWidth = 210;
-                        const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-
-                        if (!firstPage) {
-                            pdf.addPage([pdfWidth, pdfHeight]);
-                        }
-                        pdf.addImage(img, compressedFile.type === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                        firstPage = false;
-
-                        URL.revokeObjectURL(url);
-                    }
+            const compressedFiles = [];
+            for (const file of files) {
+                if (file.type !== 'image/jpeg') {
+                    status.textContent = `Error: ${file.name} is not a JPG file.`;
+                    compressBtn.disabled = false;
+                    return;
                 }
 
-                const pdfBlob = new Blob([pdf.output('arraybuffer')], { type: 'application/pdf' });
-                saveAs(pdfBlob, 'converted.pdf');
-                status.textContent = 'PDF successfully created!';
-            } catch (error) {
-                status.textContent = `Error: ${error.message}`;
-            } finally {
-                convertBtn.disabled = false;
+                try {
+                    const compressedFile = await compressImage(file, 250); // Compress to 250 KB
+                    compressedFiles.push(compressedFile);
+
+                    // Trigger download of the compressed file
+                    const blob = new Blob([compressedFile], { type: 'image/jpeg' });
+                    saveAs(blob, `compressed-${file.name}`);
+                } catch (error) {
+                    status.textContent = `Error: Failed to compress ${file.name}. ${error.message}`;
+                    compressBtn.disabled = false;
+                    return;
+                }
             }
+
+            status.textContent = `Compression complete! ${compressedFiles.length} file(s) compressed.`;
+            compressBtn.disabled = false;
         });
 
+        // Function to compress JPG images to a maximum size in KB
         async function compressImage(file, maxSizeKB) {
             const options = {
                 maxSizeMB: maxSizeKB / 1024, // Convert KB to MB
