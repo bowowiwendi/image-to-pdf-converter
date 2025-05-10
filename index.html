@@ -20,6 +20,8 @@
         .convert-btn:hover { background-color: #F472B6; }
         .compress-btn { background-color: #93C5FD; }
         .compress-btn:hover { background-color: #3B82F6; }
+        .donate-btn { background-color: #FBBF24; }
+        .donate-btn:hover { background-color: #F59E0B; }
         .status { color: #A5B4FC; }
         select { background-color: #F3F4F6; border-radius: 0.375rem; padding: 0.5rem; }
     </style>
@@ -28,33 +30,41 @@
     <div class="container p-4 sm:p-8 rounded-lg max-w-md w-full">
         <h1 class="title text-2xl font-bold text-center mb-4">SHL CONVERTER</h1>
         <p class="subtitle text-sm text-center mb-4">
-            A free, no-registration converter for JPG, PNG, TXT, Word to PDF, and JPG compression!
+            Alat gratis tanpa registrasi untuk mengonversi file JPG, PNG, TXT, dan Word ke PDF, serta kompresi file JPG hingga 250 KB.
+        </p>
+        <p class="subtitle text-sm text-center mb-4">
+            Dukung pengembangan aplikasi ini dengan memberikan donasi melalui tombol di bawah.
         </p>
 
         <!-- Tabs -->
         <div class="flex justify-around mb-4">
-            <button id="tabConvert" class="tab-active py-2 px-4 rounded">Convert</button>
-            <button id="tabCompress" class="tab-inactive py-2 px-4 rounded">Compress</button>
+            <button id="tabConvert" class="tab-active py-2 px-4 rounded">Konversi</button>
+            <button id="tabCompress" class="tab-inactive py-2 px-4 rounded">Kompres</button>
         </div>
 
         <!-- Convert Content -->
         <div id="convertContent">
-            <label for="convertType" class="sr-only">Select conversion type</label>
+            <label for="convertType" class="sr-only">Pilih tipe konversi</label>
             <select id="convertType" class="block w-full mb-4 text-sm text-gray-900">
-                <option value="image">JPG/PNG to PDF</option>
-                <option value="text">TXT to PDF</option>
-                <option value="word">Word (DOCX) to PDF</option>
+                <option value="image">JPG/PNG ke PDF</option>
+                <option value="text">TXT ke PDF</option>
+                <option value="word">Word (DOCX) ke PDF</option>
             </select>
-            <label for="fileInputConvert" class="sr-only">Upload files for conversion</label>
+            <label for="fileInputConvert" class="sr-only">Unggah file untuk dikonversi</label>
             <input type="file" id="fileInputConvert" accept="image/jpeg,image/png,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
-            <button id="convertBtn" class="convert-btn w-full text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Convert to PDF</button>
+            <button id="convertBtn" class="convert-btn w-full text-white py-2 px-4 rounded transition disabled:opacity-50" disabled>Konversi ke PDF</button>
         </div>
 
         <!-- Compress Content -->
         <div id="compressContent" class="hidden">
-            <label for="fileInputCompress" class="sr-only">Upload JPG files for compression</label>
+            <label for="fileInputCompress" class="sr-only">Unggah file JPG untuk dikompres</label>
             <input type="file" id="fileInputCompress" accept="image/jpeg" multiple class="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-800 hover:file:bg-blue-200 mb-4">
-            <button id="compressBtn" class="compress-btn w-full text-white py-2 px-4 rounded transition disabled:opacity-50">Compress JPG</button>
+            <button id="compressBtn" class="compress-btn w-full text-white py-2 px-4 rounded transition disabled:opacity-50">Kompres JPG</button>
+        </div>
+
+        <!-- Donate Button -->
+        <div class="text-center mt-4">
+            <a id="donateBtn" href="https://donate.bowowiwendi.workers.dev/" target="_blank" class="donate-btn text-white py-2 px-4 rounded transition">Donasi</a>
         </div>
 
         <a id="downloadLink" class="hidden" download></a>
@@ -112,7 +122,7 @@
             const files = fileInputConvert.files;
             if (!files.length) return;
 
-            status.textContent = 'Converting...';
+            status.textContent = 'Mengonversi...';
             convertBtn.disabled = true;
 
             const pdf = new jsPDF();
@@ -129,7 +139,7 @@
 
                         await new Promise((resolve, reject) => {
                             img.onload = resolve;
-                            img.onerror = () => reject(new Error(`Failed to load image ${file.name}`));
+                            img.onerror = () => reject(new Error(`Gagal memuat gambar ${file.name}`));
                         });
 
                         const imgWidth = img.width;
@@ -147,7 +157,7 @@
 
                 const pdfBlob = new Blob([pdf.output('arraybuffer')], { type: 'application/pdf' });
                 saveAs(pdfBlob, 'converted.pdf');
-                status.textContent = 'PDF successfully created!';
+                status.textContent = 'PDF berhasil dibuat!';
             } catch (error) {
                 status.textContent = `Error: ${error.message}`;
             } finally {
@@ -161,20 +171,20 @@
 
         fileInputCompress.addEventListener('change', () => {
             compressBtn.disabled = !fileInputCompress.files.length;
-            status.textContent = fileInputCompress.files.length ? `Selected ${fileInputCompress.files.length} file(s)` : '';
+            status.textContent = fileInputCompress.files.length ? `File yang dipilih: ${fileInputCompress.files.length}` : '';
         });
 
         compressBtn.addEventListener('click', async () => {
             const files = fileInputCompress.files;
             if (!files.length) return;
 
-            status.textContent = 'Compressing JPG...';
+            status.textContent = 'Mengompres file JPG...';
             compressBtn.disabled = true;
 
             try {
                 for (const file of files) {
                     if (file.type !== 'image/jpeg') {
-                        throw new Error(`${file.name} is not a JPG file`);
+                        throw new Error(`${file.name} bukan file JPG`);
                     }
 
                     const compressedFile = await compressImage(file, 250);
@@ -185,7 +195,7 @@
 
                     URL.revokeObjectURL(blobUrl);
                 }
-                status.textContent = 'JPG successfully compressed!';
+                status.textContent = 'File JPG berhasil dikompres!';
             } catch (error) {
                 status.textContent = `Error: ${error.message}`;
             } finally {
